@@ -1,0 +1,134 @@
+---
+title: "PeerAssigmtMo08We04"
+author: "Henri"
+date: "6/10/2020"
+output: html_document
+---
+## Peer-graded Assignment: Prediction Assignment Writeup
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Load Data and Initial Setup
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(caret)
+
+url1 <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+url2 <-  "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+NikTrain <- read.csv(url1)
+NikTest <- read.csv(url2)
+dim(NikTrain); dim(NikTest) 
+
+```
+
+## Clean Data
+
+Examined the data with the View() command and it has 160 columns/var´s and most of them have N/A in it. The strategy for cleaning the data is commence from the Test (NikTest) file making it smaller(NTestSm)by excluding all N/A content columns. Then take the name of the remaining columns and with these create a smaller Train (NTrainSm) file without excluding the "classe" column which is key for the prediction.
+```{r cleandata}
+NTestSm <- NikTest[colSums(!is.na(NikTest)) > 0] ## Clear all N/A content columns
+validColn <- c(names(NTestSm[-60]),"classe") ## get valid column names - "problem_id" + "classe"
+NTrainSm <- NikTrain[,validColn] ## extract the valid column names from Original Train file
+## Extract the near zero values with function(nearZeroValue)
+nzval <- nearZeroVar(NTrainSm); NTrainSm <- NTrainSm[, -nzval] ; NTestSm <- NTestSm[, -nzval]
+## Get rid of the first five columns because the content is non numbers
+NTrainSm <- NTrainSm[, -(1:5)]
+NTestSm <- NTestSm[, -(1:5)]
+dim(NTestSm); dim(NTrainSm) ## look at the dimension of the files
+
+## make variable "classe" in NTrainSm a factor variable
+NTrainSm$classe <- factor(NTrainSm$classe)
+
+##Devide the Train data set into Train and Validation sets
+set.seed(8128)
+inTrain = createDataPartition(NTrainSm$classe, p = 1/2)[[1]] 
+  trainit = NTrainSm[ inTrain,] 
+  validatit = NTrainSm[-inTrain,]
+```
+
+## Use three differnt Modeling techniques
+## First Model Rpart 
+```{r modelRpart}
+## FIT A RPART MODEL
+
+library(rattle)
+
+limRpart <- trainControl(method = "cv", number = 5, verboseIter = FALSE)
+NikModRpart <- train(classe ~ .,method="rpart",data=trainit,trControl = limRpart)
+
+Pred_RpartTestSm <- predict(NikModRpart, validatit)
+confusionMatrix(validatit$classe, Pred_RpartTestSm)$overall['Accuracy']
+
+table(real=validatit$classe, Pred_RpartTestSm)
+
+## See appendix II for graph of tree
+
+```
+
+## Second Model GBM
+```{r modelGBM}
+## Fit a GBM model on the "trainit" data
+limGBM <- trainControl(method = "cv", number = 3)
+NikModGBM <- train(classe ~ ., method = "gbm", data = trainit, trControl = limGBM, verbose=FALSE)
+
+## predict on the validation "validatit" data and see the accuracy
+
+Pred_validatGBM <- predict(NikModGBM, validatit)
+confusionMatrix(validatit$classe, Pred_validatGBM)$overall['Accuracy']
+table(real=validatit$classe,Pred_validatGBM)
+```
+
+## Third Model RF
+```{r fitRFmodel}
+## FIT an RF model on "trainit" data
+
+limRF <- trainControl(method = "cv", number = 3, verboseIter = FALSE)
+NikModRF <- train(classe ~ ., method = "rf", data = trainit, trControl = limRF)
+
+## predict on the validation data and see the accuracy
+Pred_val_RF <- predict(NikModRF, validatit)
+confusionMatrix(validatit$classe, Pred_val_RF)$overall['Accuracy']
+table(real=validatit$classe,Pred_val_RF)
+
+```
+It looks like the best model is RF, thus will now predict on the Test file and get the results for the Quiz.
+
+
+```{r predictionbest}
+## predict on the test file
+
+Pred_NTestSm <- predict(NikModRF, NTestSm)
+table(NTestSm$problem_id, Pred_NTestSm)
+
+```
+
+## APPENDIX I., II.
+
+APPENDIX I. File details
+```{r Appendix I}
+## These are the valid column names - non N/A in the test file
+validColn 
+
+head(NikTrain[1:5]) ## list the first five columns that contain non numbers
+## After getting rid of the near zero values and first five columns
+## both files should be same with the exception of "classe" and "id_.."
+dim(NTrainSm); dim(NTestSm)
+## small routine to make sure that all variables are same in both file
+DifNames1 <- ifelse(names(NTrainSm)==names(NTestSm),1,names(NTestSm))
+DifNames2 <- ifelse(names(NTrainSm)!=names(NTestSm),names(NTrainSm),1)
+print(DifNames1[length(DifNames1)])
+print(DifNames2[length(DifNames2)])
+library(janitor)
+## compare files
+All.list <- list(NTr=NTrainSm,NTst=NTestSm)
+print(compare_df_cols(All.list))
+## File size Ok and all columns equal except "classe" vs "problem_id"
+```
+
+APPENDIX II. Tree for Rpart Model
+```{r Appendix III}
+fancyRpartPlot(NikModRpart$finalModel)
+```
