@@ -10,7 +10,7 @@ Information on Githack:
 
 Just copy the ".html" link of the file provided by Github into the first entry point provided.
 As soon as you do it, and as long as it is a valid Github link, two links will pop up.
-One is production and the other development. Now you can either use one or these two links. Copy one into you normal browser 
+One is production and the other development. Now you can use either one or these two links. Copy it into you normal browser 
 and you will see the correct display of the file.
 
 Information provided by Githack:
